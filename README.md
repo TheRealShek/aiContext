@@ -26,7 +26,7 @@ macOS / Linux:
 ```bash
 tar -xzf aiContext_*.tar.gz
 chmod +x aiContext
-mv aiContext /usr/local/bin/
+sudo mv aiContext /usr/local/bin/
 ```
 
 Windows: extract the zip, move `aiContext.exe` to any folder in your `PATH` (e.g. `%USERPROFILE%\bin`).
@@ -57,3 +57,21 @@ Writes `AGENTS.md` + `CLAUDE.md` into current directory. Project name is inferre
 |---|---|
 | `aiContext setup` | Copies default templates to `~/.config/aiContext/templates/`. Run once after install. Safe to re-run — prompts before overwriting. |
 | `aiContext init` | Writes `AGENTS.md` + `CLAUDE.md` into current dir from your templates. |
+
+---
+
+## Shell Alias (optional)
+
+```bash
+# find your shell
+echo $SHELL
+
+# zsh
+echo "alias ac='aiContext'" >> ~/.zshrc && source ~/.zshrc
+
+# bash  
+echo "alias ac='aiContext'" >> ~/.bashrc && source ~/.bashrc
+
+# fish
+echo "alias ac='aiContext'" >> ~/.config/fish/config.fish && source ~/.config/fish/config.fish
+```
