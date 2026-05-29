@@ -2,8 +2,16 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
+    # Note: Auto-generated tags (pushed via GITHUB_TOKEN) do NOT trigger new workflow runs.
+    # This trigger exists exclusively for manually pushed v* tags (e.g., major/minor bumps).
     tags:
       - "v*"
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -14,15 +22,72 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0        # goreleaser needs full history for changelog
+          fetch-depth: 0        # goreleaser needs full history for changelog and tags
+
+      - name: Calculate and Create Tag
+        id: tagger
+        run: |
+          # Check for [skip release] in the commit message
+          if git log -1 --pretty=%B | grep -q '\[skip release\]'; then
+            echo "Skipping release due to [skip release] in commit message."
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Fetch all tags so we can find the latest one
+          git fetch --tags --force
+          
+          # Check if the current commit already has a tag starting with 'v'
+          CURRENT_TAG=$(git tag --points-at HEAD | grep '^v' | head -n 1 || true)
+          
+          if [ -n "$CURRENT_TAG" ]; then
+            echo "Current commit already tagged as $CURRENT_TAG. Skipping auto-tagging."
+            echo "tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Find latest tag matching v*
+          LATEST_TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag found in repository: $LATEST_TAG"
+          
+          # Parse version components
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -r major minor patch <<< "$VERSION"
+          
+          # Fallback check if tag wasn't semantic
+          if [ -z "$major" ] || [ -z "$minor" ] || [ -z "$patch" ]; then
+            major=0
+            minor=0
+            patch=0
+          fi
+          
+          # Increment patch version
+          NEW_PATCH=$((patch + 1))
+          NEW_TAG="v${major}.${minor}.${NEW_PATCH}"
+          echo "Calculated new tag: $NEW_TAG"
+          
+          # Configure Git credentials
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # Tag the current commit locally
+          git tag "$NEW_TAG"
+          
+          # Push the tag to remote repo
+          git push origin "$NEW_TAG"
+          
+          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
 
       - uses: actions/setup-go@v5
+        if: steps.tagger.outputs.skip != 'true'
         with:
-          go-version: "1.22"
+          go-version-file: go.mod
 
       - uses: goreleaser/goreleaser-action@v6
+        if: steps.tagger.outputs.skip != 'true'
         with:
           version: latest
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.tagger.outputs.tag }}

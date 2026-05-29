@@ -6,6 +6,16 @@ CLI to bootstrap AI instruction context files (`AGENTS.md` + `CLAUDE.md`) into a
 
 ## Installation
 
+### One-Click Installation (macOS & Linux)
+
+Install globally using `curl` and `bash`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TheRealShek/aiContext/main/install.sh | bash
+```
+
+### Manual Installation (Windows, macOS, & Linux)
+
 **1. Download the binary for your OS and architecture**
 
 Go to [github.com/TheRealShek/aiContext/releases](https://github.com/TheRealShek/aiContext/releases) and download the right file:
@@ -20,23 +30,25 @@ Go to [github.com/TheRealShek/aiContext/releases](https://github.com/TheRealShek
 
 Not sure which Mac you have? Apple menu → About This Mac. M1/M2/M3 = arm64. Intel = amd64.
 
-**2. Install**
+**2. Extract & Install**
 
-macOS / Linux:
-```bash
-tar -xzf aiContext_*.tar.gz
-chmod +x aiContext
-sudo mv aiContext /usr/local/bin/
-```
+- **macOS / Linux**:
+  ```bash
+  tar -xzf aiContext_*.tar.gz
+  chmod +x aiContext
+  sudo mv aiContext /usr/local/bin/
+  ```
+- **Windows**: Extract the ZIP, and move `aiContext.exe` to any folder in your `PATH` (e.g. `%USERPROFILE%\bin`).
 
-Windows: extract the zip, move `aiContext.exe` to any folder in your `PATH` (e.g. `%USERPROFILE%\bin`).
+### Setup
 
-**3. Run setup once**
+Once installed, initialize your global templates by running:
+
 ```bash
 aiContext setup
 ```
 
-Installs default templates to `~/.config/aiContext/templates/`. Edit those files anytime to change what gets generated globally.
+This copies default templates to `~/.config/aiContext/templates/`. You can edit those files anytime to change what gets generated globally.
 
 ---
 
@@ -47,7 +59,7 @@ cd myproject
 aiContext init
 ```
 
-Writes `AGENTS.md` + `CLAUDE.md` into current directory. Project name is inferred from the directory name. Refuses to overwrite existing files.
+Writes `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, and `.github/copilot-instructions.md` into the current directory. The project name is inferred from the directory name. Refuses to overwrite existing files.
 
 ---
 
@@ -56,7 +68,7 @@ Writes `AGENTS.md` + `CLAUDE.md` into current directory. Project name is inferre
 | Command | What it does |
 |---|---|
 | `aiContext setup` | Copies default templates to `~/.config/aiContext/templates/`. Run once after install. Safe to re-run — prompts before overwriting. |
-| `aiContext init` | Writes `AGENTS.md` + `CLAUDE.md` into current dir from your templates. |
+| `aiContext init` | Writes `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, and `.github/copilot-instructions.md` into current dir from your templates. |
 
 ---
 
