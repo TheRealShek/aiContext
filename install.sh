@@ -1,9 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 # Premium Installer for aiContext
 # https://github.com/TheRealShek/aiContext
 
-set -euo pipefail
+set -eu
 
 {
 
@@ -22,19 +22,19 @@ INFO="${BLUE}i${NC}"
 
 # --- Helper Functions ---
 log_info() {
-    echo -e "${BOLD}${CYAN}==>${NC} $*"
+    printf "${BOLD}${CYAN}==>${NC} %s\n" "$*"
 }
 
 log_success() {
-    echo -e "${TICK} $*"
+    printf "${TICK} %s\n" "$*"
 }
 
 log_error() {
-    echo -e "${CROSS} ${RED}Error:${NC} $*" >&2
+    printf "${CROSS} ${RED}Error:${NC} %s\n" "$*" >&2
 }
 
 log_warning() {
-    echo -e "${YELLOW}Warning:${NC} $*"
+    printf "${YELLOW}Warning:${NC} %s\n" "$*"
 }
 
 # --- System Validation ---
@@ -120,7 +120,7 @@ if ! tar -xzf "${TMP_DIR}/aiContext.tar.gz" -C "${TMP_DIR}"; then
 fi
 
 # --- Target Location Determination ---
-BINARY=$(find "${TMP_DIR}" -type f -name "aiContext" -print -quit)
+BINARY=$(find "${TMP_DIR}" -type f -name "aiContext" | head -n 1)
 if [ -z "$BINARY" ]; then
     log_error "Binary not found in archive."
     exit 1
@@ -158,8 +158,14 @@ else
 fi
 log_success "Successfully installed ${BOLD}aiContext${NC} to ${BOLD}${TARGET}${NC}!"
 
-# --- Setup Recommendation ---
-echo -e "\n${BOLD}${GREEN}aiContext is ready!${NC}"
-echo -e "Run the setup command once to install the default templates:"
-echo -e "  ${CYAN}aiContext setup${NC}\n"
+# --- Run Setup ---
+log_info "Running initial setup..."
+if aiContext setup; then
+    printf "\n${BOLD}${GREEN}Setup complete! aiContext is ready to use.${NC}\n"
+    printf "Navigate to your project directory and run:\n"
+    printf "  ${CYAN}aiContext init${NC}\n\n"
+else
+    log_error "Setup failed. You can retry manually with: aiContext setup"
+    exit 1
+fi
 }
