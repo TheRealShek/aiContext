@@ -8,13 +8,14 @@ set -eu
 {
 
 # --- Color Definitions & Icons ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m' # No Color
+ESC=$(printf '\033')
+RED="${ESC}[0;31m"
+GREEN="${ESC}[0;32m"
+YELLOW="${ESC}[0;33m"
+BLUE="${ESC}[0;34m"
+CYAN="${ESC}[0;36m"
+BOLD="${ESC}[1m"
+NC="${ESC}[0m" # No Color
 
 TICK="${GREEN}✓${NC}"
 CROSS="${RED}✗${NC}"
@@ -160,7 +161,7 @@ log_success "Successfully installed ${BOLD}aiContext${NC} to ${BOLD}${TARGET}${N
 
 # --- Run Setup ---
 log_info "Running initial setup..."
-if aiContext setup; then
+if aiContext setup < /dev/tty; then
     printf "\n${BOLD}${GREEN}Setup complete! aiContext is ready to use.${NC}\n"
     printf "Navigate to your project directory and run:\n"
     printf "  ${CYAN}aiContext init${NC}\n\n"
