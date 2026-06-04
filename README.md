@@ -8,10 +8,10 @@ CLI to bootstrap AI instruction context files (`AGENTS.md` + `CLAUDE.md`) into a
 
 ### One-Click Installation (macOS & Linux)
 
-Install globally using `curl` and `bash`:
+Install globally using `curl` and `sh`:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/TheRealShek/aiContext/main/install.sh | bash
+```sh
+curl -fsSL https://raw.githubusercontent.com/TheRealShek/aiContext/main/install.sh | sh
 ```
 
 ### Manual Installation (Windows, macOS, & Linux)
@@ -42,13 +42,15 @@ Not sure which Mac you have? Apple menu → About This Mac. M1/M2/M3 = arm64. In
 
 ### Setup
 
-Once installed, initialize your global templates by running:
+The installer automatically runs `aiContext setup` for you, which copies default templates to `~/.config/aiContext/templates/`.
 
-```bash
+If you installed manually, run it once yourself:
+
+```sh
 aiContext setup
 ```
 
-This copies default templates to `~/.config/aiContext/templates/`. You can edit those files anytime to change what gets generated globally.
+You can edit those template files anytime to change what gets generated globally.
 
 ---
 
