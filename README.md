@@ -61,7 +61,7 @@ cd myproject
 aiContext init
 ```
 
-Writes `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, and `.github/copilot-instructions.md` into the current directory. The project name is inferred from the directory name. Refuses to overwrite existing files.
+Writes `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/aicontext.mdc`, and `.github/copilot-instructions.md` into the current directory. The project name is inferred from the directory name. Refuses to overwrite existing files.
 
 ---
 
@@ -70,7 +70,7 @@ Writes `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, and `.github/copilot-instructio
 | Command | What it does |
 |---|---|
 | `aiContext setup` | Copies default templates to `~/.config/aiContext/templates/`. Run once after install. Safe to re-run — prompts before overwriting. |
-| `aiContext init` | Writes `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, and `.github/copilot-instructions.md` into current dir from your templates. |
+| `aiContext init` | Writes `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/aicontext.mdc`, and `.github/copilot-instructions.md` into current dir from your templates. |
 
 ---
 
