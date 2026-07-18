@@ -15,7 +15,7 @@ func TestRunInitCreatesAllFiles(t *testing.T) {
 	writeTestTemplates(t, templateDir)
 
 	var output bytes.Buffer
-	if err := runInit(projectDir, templateDir, &output, false); err != nil {
+	if err := runInit(projectDir, templateDir, &output, initOptions{}); err != nil {
 		t.Fatalf("runInit() error = %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestRunInitMissingTemplateCreatesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runInit(projectDir, templateDir, &bytes.Buffer{}, false)
+	err := runInit(projectDir, templateDir, &bytes.Buffer{}, initOptions{})
 	if err == nil || !strings.Contains(err.Error(), "CLAUDE.md") {
 		t.Fatalf("runInit() error = %v, want missing CLAUDE.md error", err)
 	}
@@ -66,7 +66,7 @@ func TestRunInitRefusesExistingDestination(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runInit(projectDir, templateDir, &bytes.Buffer{}, false)
+	err := runInit(projectDir, templateDir, &bytes.Buffer{}, initOptions{})
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("runInit() error = %v, want existing destination error", err)
 	}
@@ -129,7 +129,7 @@ func TestRunInitDryRunDoesNotWrite(t *testing.T) {
 	writeTestTemplates(t, templateDir)
 
 	var output bytes.Buffer
-	if err := runInit(projectDir, templateDir, &output, true); err != nil {
+	if err := runInit(projectDir, templateDir, &output, initOptions{dryRun: true}); err != nil {
 		t.Fatalf("runInit() error = %v", err)
 	}
 	if !strings.Contains(output.String(), "would create AGENTS.md") {

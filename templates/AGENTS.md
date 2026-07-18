@@ -1,16 +1,17 @@
 # AGENTS.md
 
 > **Project:** **{{PROJECT_NAME}}** — [One sentence: what it does and for whom.]
-> **Stack:** [Language · Framework · DB · infra — only non-obvious choices]
+> **Stack:** {{STACK}}
 
 ---
 
 ## Commands
 
-<!-- Add only non-standard or non-obvious commands. Standard ones (npm install, go test) → skip. -->
+<!-- Keep the commands an agent should run to build, test, lint, or validate changes. -->
 
 | Action | Command | Note |
 | ------ | ------- | ---- |
+{{COMMANDS}}
 
 ---
 

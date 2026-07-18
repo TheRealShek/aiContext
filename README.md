@@ -83,6 +83,7 @@ Creates instruction files in the current directory:
 ```sh
 aiContext init
 aiContext init --dry-run
+aiContext init --detect
 aiContext init --target ../another-project
 aiContext init --template-dir ./team-templates
 ```
@@ -90,8 +91,14 @@ aiContext init --template-dir ./team-templates
 Options can be combined. For example:
 
 ```sh
-aiContext init --dry-run --target ./service --template-dir ./templates
+aiContext init --detect --dry-run --target ./service --template-dir ./templates
 ```
+
+`--detect` inspects common project manifests and fills the stack and commands sections of the default `AGENTS.md` template. Detection currently recognizes Go, Node.js/TypeScript, Rust, Python, Ruby, Java/Kotlin, .NET, Swift, PHP, Docker, Docker Compose, and Terraform projects, including several common frameworks and package managers.
+
+Detection is intentionally opt-in and never executes project code. Review the generated instructions and keep only commands and stack details that are accurate for the project.
+
+Detection populates templates containing `{{STACK}}` and `{{COMMANDS}}`. If existing customized templates predate these placeholders, add them manually or use `aiContext setup --force` to replace the templates with current defaults.
 
 ### Other commands
 
@@ -104,7 +111,15 @@ aiContext setup --help
 
 ## Template values
 
-`{{PROJECT_NAME}}` is replaced with the target directory name during `init`. Other template text is copied unchanged.
+The following values can be used in custom templates:
+
+| Placeholder | Value |
+|---|---|
+| `{{PROJECT_NAME}}` | Target directory name |
+| `{{STACK}}` | Detected stack with `--detect`, otherwise editing guidance |
+| `{{COMMANDS}}` | Detected Markdown command rows with `--detect`, otherwise editing guidance |
+
+Other template text is copied unchanged.
 
 ## Optional shell alias
 

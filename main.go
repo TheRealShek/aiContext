@@ -77,6 +77,7 @@ func runInitCommand(args []string, stdout io.Writer) error {
 	target := flags.String("target", "", "project directory (default: current directory)")
 	templateDir := flags.String("template-dir", "", "template directory (default: user config directory)")
 	dryRun := flags.Bool("dry-run", false, "validate and show files without writing them")
+	detect := flags.Bool("detect", false, "detect the project stack and common commands")
 	flags.Usage = func() { printInitUsage(stdout) }
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -96,7 +97,7 @@ func runInitCommand(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	return runInit(projectDir, resolvedTemplates, stdout, *dryRun)
+	return runInit(projectDir, resolvedTemplates, stdout, initOptions{dryRun: *dryRun, detect: *detect})
 }
 
 func runSetupCommand(args []string, stdin io.Reader, stdout io.Writer) error {
@@ -128,11 +129,32 @@ type pendingFile struct {
 	content []byte
 }
 
+type initOptions struct {
+	dryRun bool
+	detect bool
+}
+
 // runInit validates every template and destination before creating project files.
 // If any write fails, files created by this invocation are removed.
-func runInit(cwd, templateDir string, stdout io.Writer, dryRun bool) (err error) {
+func runInit(cwd, templateDir string, stdout io.Writer, options initOptions) (err error) {
 	projectName := filepath.Base(filepath.Clean(cwd))
 	files := make([]pendingFile, 0, len(projectTemplates))
+	templateStack := "[Language · Framework · DB · infra — only non-obvious choices]"
+	templateCommands := "<!-- Add one row per non-obvious project command. -->"
+	if options.detect {
+		context, detectErr := detectProjectContext(cwd)
+		if detectErr != nil {
+			return detectErr
+		}
+		templateStack = context.stack
+		templateCommands = context.commands
+		fmt.Fprintln(stdout, "detected stack:", context.stack)
+	}
+	replacer := strings.NewReplacer(
+		"{{PROJECT_NAME}}", projectName,
+		"{{STACK}}", templateStack,
+		"{{COMMANDS}}", templateCommands,
+	)
 
 	for _, spec := range projectTemplates {
 		srcPath := filepath.Join(templateDir, spec.source)
@@ -148,14 +170,14 @@ func runInit(cwd, templateDir string, stdout io.Writer, dryRun bool) (err error)
 			return fmt.Errorf("cannot inspect %s: %w", spec.destination, statErr)
 		}
 
-		content := strings.ReplaceAll(string(raw), "{{PROJECT_NAME}}", projectName)
+		content := replacer.Replace(string(raw))
 		files = append(files, pendingFile{
 			path:    destPath,
 			display: spec.destination,
 			content: []byte(content),
 		})
 	}
-	if dryRun {
+	if options.dryRun {
 		for _, file := range files {
 			fmt.Fprintln(stdout, "would create", file.display)
 		}
@@ -260,9 +282,10 @@ func printUsage(w io.Writer) {
 }
 
 func printInitUsage(w io.Writer) {
-	fmt.Fprintln(w, "Usage: aiContext init [--dry-run] [--target DIR] [--template-dir DIR]")
+	fmt.Fprintln(w, "Usage: aiContext init [--detect] [--dry-run] [--target DIR] [--template-dir DIR]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, "  --detect            Detect the project stack and common commands")
 	fmt.Fprintln(w, "  --dry-run           Validate and show outputs without writing files")
 	fmt.Fprintln(w, "  --target DIR         Project directory (default: current directory)")
 	fmt.Fprintln(w, "  --template-dir DIR   Template directory (default: user config directory)")
