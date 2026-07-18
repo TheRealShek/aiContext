@@ -34,6 +34,9 @@ func TestRunInitCreatesAllFiles(t *testing.T) {
 			t.Errorf("%s content = %q, want %q", name, got, want)
 		}
 	}
+	if _, err := readManifest(projectDir); err != nil {
+		t.Fatalf("readManifest() error = %v", err)
+	}
 }
 
 func TestRunInitMissingTemplateCreatesNothing(t *testing.T) {
@@ -49,11 +52,14 @@ func TestRunInitMissingTemplateCreatesNothing(t *testing.T) {
 		t.Fatalf("runInit() error = %v, want missing CLAUDE.md error", err)
 	}
 
-	for _, spec := range projectTemplates {
+	for _, spec := range templateSpecsForTools(defaultTools) {
 		_, statErr := os.Lstat(filepath.Join(projectDir, filepath.FromSlash(spec.destination)))
 		if !errors.Is(statErr, os.ErrNotExist) {
 			t.Errorf("destination %s exists after failed init; stat error = %v", spec.destination, statErr)
 		}
+	}
+	if _, statErr := os.Lstat(filepath.Join(projectDir, manifestFilename)); !errors.Is(statErr, os.ErrNotExist) {
+		t.Errorf("%s exists after failed init; stat error = %v", manifestFilename, statErr)
 	}
 }
 
@@ -89,7 +95,7 @@ func TestRunSetupCopiesEmbeddedTemplates(t *testing.T) {
 		t.Fatalf("runSetup() error = %v", err)
 	}
 
-	for _, spec := range projectTemplates {
+	for _, spec := range setupTemplateSpecs() {
 		got, err := os.ReadFile(filepath.Join(templateDir, spec.source))
 		if err != nil {
 			t.Fatalf("ReadFile(%q) error = %v", spec.source, err)
@@ -201,6 +207,7 @@ func writeTestTemplates(t *testing.T, dir string) {
 		"CLAUDE.md":               "@AGENTS.md\n",
 		"cursor.mdc":              "@AGENTS.md\n",
 		"copilot-instructions.md": "@AGENTS.md\n",
+		"GEMINI.md":               "@AGENTS.md\n",
 	}
 	for name, content := range contents {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
