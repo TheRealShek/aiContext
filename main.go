@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-//go:embed templates/*
+//go:embed templates/* profiles/* guidelines/*
 var defaultTemplates embed.FS
 
 const configSubdir = "aiContext/templates"
@@ -62,6 +62,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		printTools(stdout)
 		return nil
+	case "profiles":
+		return runProfilesCommand(args[1:], stdout)
 	case "version", "--version":
 		if len(args) != 1 {
 			return fmt.Errorf("version does not accept arguments")
@@ -78,6 +80,27 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		printUsage(stdout)
 		return errUsage
 	}
+}
+
+func runProfilesCommand(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("profiles", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	templateDir := flags.String("template-dir", "", "template directory (default: user config directory)")
+	flags.Usage = func() { fmt.Fprintln(stdout, "Usage: aiContext profiles [--template-dir DIR]") }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("profiles does not accept positional arguments")
+	}
+	resolvedTemplates, err := resolveTemplateDir(*templateDir)
+	if err != nil {
+		return err
+	}
+	return printProfiles(stdout, resolvedTemplates)
 }
 
 func runHealthCommand(args []string, stdout io.Writer, check bool) error {
@@ -236,6 +259,8 @@ func runInitCommand(args []string, stdout io.Writer) error {
 	detect := flags.Bool("detect", false, "detect the project stack and common commands")
 	adopt := flags.Bool("adopt", false, "create lifecycle state for existing instruction files")
 	toolsFlag := flags.String("tools", strings.Join(defaultTools, ","), "comma-separated tools or 'all'")
+	profileFlag := flags.String("profile", "", "working profile (default: standard)")
+	languagesFlag := flags.String("languages", "", "language guideline packs (default: auto)")
 	flags.Usage = func() { printInitUsage(stdout) }
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -255,14 +280,35 @@ func runInitCommand(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	profileName := *profileFlag
+	languageSelection := *languagesFlag
 	if *adopt {
-		return runAdopt(projectDir, tools, *detect, stdout, *dryRun)
+		if profileName == "" {
+			profileName = "adopted"
+		}
+		if languageSelection == "" {
+			languageSelection = "none"
+		}
+	} else {
+		if profileName == "" {
+			profileName = "standard"
+		}
+		if languageSelection == "" {
+			languageSelection = "auto"
+		}
+	}
+	languages, err := resolveLanguageSelection(projectDir, languageSelection)
+	if err != nil {
+		return err
+	}
+	if *adopt {
+		return runAdopt(projectDir, tools, *detect, profileName, languages, stdout, *dryRun)
 	}
 	resolvedTemplates, err := resolveTemplateDir(*templateDir)
 	if err != nil {
 		return err
 	}
-	return runInit(projectDir, resolvedTemplates, stdout, initOptions{dryRun: *dryRun, detect: *detect, tools: tools})
+	return runInit(projectDir, resolvedTemplates, stdout, initOptions{dryRun: *dryRun, detect: *detect, tools: tools, profile: profileName, languages: languages})
 }
 
 func runSetupCommand(args []string, stdin io.Reader, stdout io.Writer) error {
@@ -296,9 +342,11 @@ type pendingFile struct {
 }
 
 type initOptions struct {
-	dryRun bool
-	detect bool
-	tools  []string
+	dryRun    bool
+	detect    bool
+	tools     []string
+	profile   string
+	languages []string
 }
 
 // runInit validates every template and destination before creating project files.
@@ -312,6 +360,20 @@ func runInit(cwd, templateDir string, stdout io.Writer, options initOptions) (er
 	files := make([]pendingFile, 0, len(specs)+1)
 	templateStack := "[Language · Framework · DB · infra — only non-obvious choices]"
 	templateCommands := "<!-- Add one row per non-obvious project command. -->"
+	profileGuidelines := "<!-- Add the working agreement for this project. -->"
+	languageGuidelines := "<!-- Add language-specific guidance when it prevents real mistakes. -->"
+	if options.profile != "" && options.profile != "adopted" {
+		loadedProfile, loadedLanguages, loadErr := loadProfileGuidance(templateDir, options.profile, options.languages)
+		if loadErr != nil {
+			return loadErr
+		}
+		profileGuidelines = loadedProfile
+		languageGuidelines = loadedLanguages
+		fmt.Fprintln(stdout, "profile:", options.profile)
+		if len(options.languages) > 0 {
+			fmt.Fprintln(stdout, "language guidelines:", strings.Join(options.languages, ", "))
+		}
+	}
 	if options.detect {
 		context, detectErr := detectProjectContext(cwd)
 		if detectErr != nil {
@@ -325,6 +387,8 @@ func runInit(cwd, templateDir string, stdout io.Writer, options initOptions) (er
 		"{{PROJECT_NAME}}", projectName,
 		"{{STACK}}", templateStack,
 		"{{COMMANDS}}", templateCommands,
+		"{{PROFILE_GUIDELINES}}", profileGuidelines,
+		"{{LANGUAGE_GUIDELINES}}", languageGuidelines,
 	)
 
 	for _, spec := range specs {
@@ -350,7 +414,7 @@ func runInit(cwd, templateDir string, stdout io.Writer, options initOptions) (er
 		})
 	}
 
-	manifest := newProjectManifest(options.tools, options.detect, "", files)
+	manifest := newProjectManifest(options.tools, options.detect, options.profile, options.languages, files)
 	manifestData, manifestErr := marshalManifest(manifest)
 	if manifestErr != nil {
 		return manifestErr
@@ -409,7 +473,7 @@ func runInit(cwd, templateDir string, stdout io.Writer, options initOptions) (er
 	return nil
 }
 
-func runAdopt(cwd string, tools []string, detect bool, stdout io.Writer, dryRun bool) error {
+func runAdopt(cwd string, tools []string, detect bool, profile string, languages []string, stdout io.Writer, dryRun bool) error {
 	manifestPath := filepath.Join(cwd, manifestFilename)
 	if _, err := os.Lstat(manifestPath); err == nil {
 		return fmt.Errorf("%s already exists — project is already managed", manifestFilename)
@@ -426,7 +490,7 @@ func runAdopt(cwd string, tools []string, detect bool, stdout io.Writer, dryRun 
 		}
 		files = append(files, pendingFile{path: path, display: spec.destination, source: spec.source, content: content})
 	}
-	manifest := newProjectManifest(tools, detect, "", files)
+	manifest := newProjectManifest(tools, detect, profile, languages, files)
 	data, err := marshalManifest(manifest)
 	if err != nil {
 		return err
@@ -466,26 +530,29 @@ func runSetup(templateDir string, stdin io.Reader, stdout io.Writer, force bool)
 	}
 
 	input := bufio.NewReader(stdin)
-	for _, spec := range setupTemplateSpecs() {
-		dest := filepath.Join(templateDir, spec.source)
+	for _, asset := range setupAssets(templateDir) {
+		dest := asset.destination
 
 		if _, err := os.Lstat(dest); err == nil && !force {
-			fmt.Fprintf(stdout, "? %s exists — overwrite? [y/N]: ", spec.source)
+			fmt.Fprintf(stdout, "? %s exists — overwrite? [y/N]: ", asset.label)
 			answer, readErr := input.ReadString('\n')
 			if readErr != nil && !errors.Is(readErr, io.EOF) {
 				return fmt.Errorf("cannot read overwrite response: %w", readErr)
 			}
 			if !strings.EqualFold(strings.TrimSpace(answer), "y") {
-				fmt.Fprintln(stdout, "skip", spec.source)
+				fmt.Fprintln(stdout, "skip", asset.label)
 				continue
 			}
 		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("cannot inspect %s: %w", dest, err)
 		}
 
-		data, err := defaultTemplates.ReadFile("templates/" + spec.source)
+		data, err := defaultTemplates.ReadFile(asset.embedded)
 		if err != nil {
-			return fmt.Errorf("cannot read embedded template %s: %w", spec.source, err)
+			return fmt.Errorf("cannot read embedded asset %s: %w", asset.label, err)
+		}
+		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+			return fmt.Errorf("cannot create directory for %s: %w", asset.label, err)
 		}
 		if err := os.WriteFile(dest, data, 0o644); err != nil {
 			return fmt.Errorf("cannot write %s: %w", dest, err)
@@ -512,6 +579,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  aiContext doctor|check [options]")
 	fmt.Fprintln(w, "  aiContext diff|sync|update [options]")
 	fmt.Fprintln(w, "  aiContext tools")
+	fmt.Fprintln(w, "  aiContext profiles")
 	fmt.Fprintln(w, "  aiContext version")
 	fmt.Fprintln(w, "  aiContext help")
 	fmt.Fprintln(w)
@@ -519,13 +587,15 @@ func printUsage(w io.Writer) {
 }
 
 func printInitUsage(w io.Writer) {
-	fmt.Fprintln(w, "Usage: aiContext init [--adopt] [--detect] [--dry-run] [--tools LIST] [--target DIR] [--template-dir DIR]")
+	fmt.Fprintln(w, "Usage: aiContext init [--adopt] [--detect] [--dry-run] [--tools LIST] [--profile NAME] [--languages LIST] [--target DIR] [--template-dir DIR]")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Options:")
 	fmt.Fprintln(w, "  --adopt             Manage existing instruction files without replacing them")
 	fmt.Fprintln(w, "  --detect            Detect the project stack and common commands")
 	fmt.Fprintln(w, "  --dry-run           Validate and show outputs without writing files")
 	fmt.Fprintf(w, "  --tools LIST        Comma-separated tools (default: %s)\n", strings.Join(defaultTools, ","))
+	fmt.Fprintln(w, "  --profile NAME      Working profile (default: standard)")
+	fmt.Fprintln(w, "  --languages LIST    auto, none, all, or comma-separated guideline packs")
 	fmt.Fprintln(w, "  --target DIR         Project directory (default: current directory)")
 	fmt.Fprintln(w, "  --template-dir DIR   Template directory (default: user config directory)")
 }

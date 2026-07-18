@@ -15,6 +15,16 @@
 
 ---
 
+## Working Agreement
+
+{{PROFILE_GUIDELINES}}
+
+## Language Guidelines
+
+{{LANGUAGE_GUIDELINES}}
+
+---
+
 ## Gotchas
 
 <!-- Each line = a real mistake that happened. Delete once fixed in code. -->

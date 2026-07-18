@@ -62,7 +62,7 @@ func TestRunAdoptCreatesStateWithoutChangingExistingFiles(t *testing.T) {
 	writeProjectFile(t, projectDir, "AGENTS.md", "existing canonical\n")
 	writeProjectFile(t, projectDir, "CLAUDE.md", "existing Claude adapter\n")
 
-	if err := runAdopt(projectDir, []string{"claude"}, false, &bytes.Buffer{}, false); err != nil {
+	if err := runAdopt(projectDir, []string{"claude"}, false, "adopted", nil, &bytes.Buffer{}, false); err != nil {
 		t.Fatalf("runAdopt() error = %v", err)
 	}
 	for path, want := range map[string]string{

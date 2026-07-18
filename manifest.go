@@ -18,6 +18,7 @@ type projectManifest struct {
 	GeneratorVersion string        `json:"generatorVersion"`
 	Tools            []string      `json:"tools"`
 	Profile          string        `json:"profile,omitempty"`
+	Languages        []string      `json:"languages,omitempty"`
 	Detect           bool          `json:"detect"`
 	Files            []managedFile `json:"files"`
 }
@@ -29,12 +30,13 @@ type managedFile struct {
 	SHA256   string `json:"sha256"`
 }
 
-func newProjectManifest(tools []string, detect bool, profile string, files []pendingFile) projectManifest {
+func newProjectManifest(tools []string, detect bool, profile string, languages []string, files []pendingFile) projectManifest {
 	manifest := projectManifest{
 		SchemaVersion:    manifestSchemaVersion,
 		GeneratorVersion: version,
 		Tools:            append([]string(nil), tools...),
 		Profile:          profile,
+		Languages:        append([]string(nil), languages...),
 		Detect:           detect,
 		Files:            make([]managedFile, 0, len(files)),
 	}
@@ -88,6 +90,21 @@ func validateManifest(manifest projectManifest) error {
 		if !isSupportedTool(tool) {
 			return fmt.Errorf("%s contains unknown tool %q", manifestFilename, tool)
 		}
+	}
+	if manifest.Profile != "" {
+		if err := validateProfileName(manifest.Profile); err != nil {
+			return fmt.Errorf("%s contains an invalid profile: %w", manifestFilename, err)
+		}
+	}
+	seenLanguages := make(map[string]bool, len(manifest.Languages))
+	for _, language := range manifest.Languages {
+		if !isSupportedLanguage(language) {
+			return fmt.Errorf("%s contains unknown language guideline %q", manifestFilename, language)
+		}
+		if seenLanguages[language] {
+			return fmt.Errorf("%s contains duplicate language guideline %q", manifestFilename, language)
+		}
+		seenLanguages[language] = true
 	}
 	seen := make(map[string]bool)
 	for _, file := range manifest.Files {

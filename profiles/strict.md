@@ -1,0 +1,9 @@
+- Confirm the affected architecture, invariants, and public contracts before implementation.
+- Keep changes narrowly scoped; separate unrelated cleanup from functional work.
+- Preserve backward compatibility or provide an explicit migration path.
+- Cover success, boundary, failure, and concurrency behavior where applicable.
+- Treat compiler, formatter, linter, vet, and test warnings as work to resolve, not ignore.
+- Avoid adding dependencies unless their maintenance and security cost is justified.
+- Do not hand-edit generated artifacts when a source or generator exists.
+- Document non-obvious tradeoffs, invariants, and operational consequences.
+- Finish with a concise record of the checks that were actually run.

@@ -1,0 +1,10 @@
+- Treat every external input, file path, URL, header, environment value, and decoded payload as untrusted.
+- Validate at trust boundaries and encode or parameterize data for its destination context.
+- Enforce authentication and authorization on the server side using least privilege and deny-by-default rules.
+- Never commit, print, return, or persist secrets, credentials, tokens, or unnecessary personal data.
+- Avoid constructing shell commands, SQL, templates, or file paths through unchecked string concatenation.
+- Use cryptographic and randomness APIs from maintained platform libraries; do not invent security primitives.
+- Keep dependency additions minimal, pinned where appropriate, and reviewed for maintenance risk.
+- Ensure logs are useful for investigation without containing secrets or sensitive payloads.
+- Add negative tests for malformed input, unauthorized access, boundary violations, and unsafe defaults.
+- Call out unresolved security assumptions and risks explicitly.

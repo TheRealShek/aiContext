@@ -214,4 +214,11 @@ func writeTestTemplates(t *testing.T, dir string) {
 			t.Fatal(err)
 		}
 	}
+	profileDir := filepath.Join(filepath.Dir(dir), "profiles")
+	if err := os.MkdirAll(profileDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(profileDir, "standard.md"), []byte("Use the test working agreement.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }

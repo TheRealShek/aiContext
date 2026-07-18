@@ -1,0 +1,8 @@
+- Read nearby code and tests before changing behavior; follow established project conventions.
+- Prefer the smallest cohesive change that fully solves the request.
+- Preserve public behavior unless the task explicitly requires a breaking change.
+- Add or update tests for changed behavior, including meaningful failure cases.
+- Use existing abstractions and dependencies before introducing new ones.
+- Return errors with enough context to diagnose the failed operation without exposing secrets.
+- Run the relevant formatter, static checks, and tests before finishing.
+- Update documentation when commands, configuration, or public behavior changes.

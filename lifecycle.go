@@ -331,7 +331,13 @@ func inspectProjectHealth(root string) (healthReport, error) {
 }
 
 func containsUnresolvedPlaceholder(content []byte) bool {
-	for _, placeholder := range [][]byte{[]byte("{{PROJECT_NAME}}"), []byte("{{STACK}}"), []byte("{{COMMANDS}}"), []byte("{{GUIDELINES}}")} {
+	for _, placeholder := range [][]byte{
+		[]byte("{{PROJECT_NAME}}"),
+		[]byte("{{STACK}}"),
+		[]byte("{{COMMANDS}}"),
+		[]byte("{{PROFILE_GUIDELINES}}"),
+		[]byte("{{LANGUAGE_GUIDELINES}}"),
+	} {
 		if bytes.Contains(content, placeholder) {
 			return true
 		}

@@ -1,0 +1,3 @@
+- Follow the repository's existing structure and conventions.
+- Keep changes focused on the requested outcome.
+- Run the most relevant available checks before finishing.
