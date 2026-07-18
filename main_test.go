@@ -15,7 +15,7 @@ func TestRunInitCreatesAllFiles(t *testing.T) {
 	writeTestTemplates(t, templateDir)
 
 	var output bytes.Buffer
-	if err := runInit(projectDir, templateDir, &output); err != nil {
+	if err := runInit(projectDir, templateDir, &output, false); err != nil {
 		t.Fatalf("runInit() error = %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestRunInitMissingTemplateCreatesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runInit(projectDir, templateDir, &bytes.Buffer{})
+	err := runInit(projectDir, templateDir, &bytes.Buffer{}, false)
 	if err == nil || !strings.Contains(err.Error(), "CLAUDE.md") {
 		t.Fatalf("runInit() error = %v, want missing CLAUDE.md error", err)
 	}
@@ -66,7 +66,7 @@ func TestRunInitRefusesExistingDestination(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runInit(projectDir, templateDir, &bytes.Buffer{})
+	err := runInit(projectDir, templateDir, &bytes.Buffer{}, false)
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("runInit() error = %v, want existing destination error", err)
 	}
@@ -85,7 +85,7 @@ func TestRunInitRefusesExistingDestination(t *testing.T) {
 func TestRunSetupCopiesEmbeddedTemplates(t *testing.T) {
 	templateDir := t.TempDir()
 	var output bytes.Buffer
-	if err := runSetup(templateDir, strings.NewReader(""), &output); err != nil {
+	if err := runSetup(templateDir, strings.NewReader(""), &output, false); err != nil {
 		t.Fatalf("runSetup() error = %v", err)
 	}
 
@@ -111,7 +111,7 @@ func TestRunSetupPreservesExistingTemplateByDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := runSetup(templateDir, strings.NewReader("\n"), &bytes.Buffer{}); err != nil {
+	if err := runSetup(templateDir, strings.NewReader("\n"), &bytes.Buffer{}, false); err != nil {
 		t.Fatalf("runSetup() error = %v", err)
 	}
 	data, err := os.ReadFile(existing)
@@ -120,6 +120,77 @@ func TestRunSetupPreservesExistingTemplateByDefault(t *testing.T) {
 	}
 	if got := string(data); got != "custom\n" {
 		t.Fatalf("existing template content = %q, want unchanged", got)
+	}
+}
+
+func TestRunInitDryRunDoesNotWrite(t *testing.T) {
+	templateDir := t.TempDir()
+	projectDir := t.TempDir()
+	writeTestTemplates(t, templateDir)
+
+	var output bytes.Buffer
+	if err := runInit(projectDir, templateDir, &output, true); err != nil {
+		t.Fatalf("runInit() error = %v", err)
+	}
+	if !strings.Contains(output.String(), "would create AGENTS.md") {
+		t.Fatalf("dry-run output = %q", output.String())
+	}
+	if _, err := os.Lstat(filepath.Join(projectDir, "AGENTS.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dry-run created AGENTS.md; stat error = %v", err)
+	}
+}
+
+func TestRunSetupForceOverwritesExistingTemplate(t *testing.T) {
+	templateDir := t.TempDir()
+	existing := filepath.Join(templateDir, "AGENTS.md")
+	if err := os.WriteFile(existing, []byte("custom\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runSetup(templateDir, strings.NewReader(""), &bytes.Buffer{}, true); err != nil {
+		t.Fatalf("runSetup() error = %v", err)
+	}
+	want, err := defaultTemplates.ReadFile("templates/AGENTS.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("--force did not replace existing template")
+	}
+}
+
+func TestRunSupportsHelpVersionAndCustomDirectories(t *testing.T) {
+	templateDir := t.TempDir()
+	projectDir := t.TempDir()
+	writeTestTemplates(t, templateDir)
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "help", args: []string{"help"}, want: "Usage:"},
+		{name: "version", args: []string{"version"}, want: "aiContext " + version},
+		{
+			name: "custom init dry run",
+			args: []string{"init", "--dry-run", "--target", projectDir, "--template-dir", templateDir},
+			want: "would create AGENTS.md",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var output bytes.Buffer
+			if err := run(tt.args, strings.NewReader(""), &output); err != nil {
+				t.Fatalf("run() error = %v", err)
+			}
+			if !strings.Contains(output.String(), tt.want) {
+				t.Fatalf("run() output = %q, want substring %q", output.String(), tt.want)
+			}
+		})
 	}
 }
 

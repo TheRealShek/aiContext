@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"embed"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -14,7 +15,9 @@ import (
 //go:embed templates/*
 var defaultTemplates embed.FS
 
-const configDir = ".config/aiContext/templates"
+const configSubdir = "aiContext/templates"
+
+var version = "dev"
 
 var errUsage = errors.New("invalid command")
 
@@ -40,32 +43,83 @@ func main() {
 }
 
 func run(args []string, stdin io.Reader, stdout io.Writer) error {
-	if len(args) != 1 {
+	if len(args) == 0 {
 		printUsage(stdout)
 		return errUsage
 	}
 
 	switch args[0] {
 	case "init":
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("cannot read current dir: %w", err)
-		}
-		templateDir, err := userTemplateDir()
-		if err != nil {
-			return err
-		}
-		return runInit(cwd, templateDir, stdout)
+		return runInitCommand(args[1:], stdout)
 	case "setup":
-		templateDir, err := userTemplateDir()
-		if err != nil {
-			return err
+		return runSetupCommand(args[1:], stdin, stdout)
+	case "version", "--version":
+		if len(args) != 1 {
+			return fmt.Errorf("version does not accept arguments")
 		}
-		return runSetup(templateDir, stdin, stdout)
+		fmt.Fprintf(stdout, "aiContext %s\n", version)
+		return nil
+	case "help", "--help", "-h":
+		if len(args) != 1 {
+			return fmt.Errorf("help does not accept arguments")
+		}
+		printUsage(stdout)
+		return nil
 	default:
 		printUsage(stdout)
 		return errUsage
 	}
+}
+
+func runInitCommand(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("init", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	target := flags.String("target", "", "project directory (default: current directory)")
+	templateDir := flags.String("template-dir", "", "template directory (default: user config directory)")
+	dryRun := flags.Bool("dry-run", false, "validate and show files without writing them")
+	flags.Usage = func() { printInitUsage(stdout) }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("init does not accept positional arguments")
+	}
+
+	projectDir, err := resolveTargetDir(*target)
+	if err != nil {
+		return err
+	}
+	resolvedTemplates, err := resolveTemplateDir(*templateDir)
+	if err != nil {
+		return err
+	}
+	return runInit(projectDir, resolvedTemplates, stdout, *dryRun)
+}
+
+func runSetupCommand(args []string, stdin io.Reader, stdout io.Writer) error {
+	flags := flag.NewFlagSet("setup", flag.ContinueOnError)
+	flags.SetOutput(stdout)
+	templateDir := flags.String("template-dir", "", "template directory (default: user config directory)")
+	force := flags.Bool("force", false, "overwrite existing templates without prompting")
+	flags.Usage = func() { printSetupUsage(stdout) }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("setup does not accept positional arguments")
+	}
+
+	resolvedTemplates, err := resolveTemplateDir(*templateDir)
+	if err != nil {
+		return err
+	}
+	return runSetup(resolvedTemplates, stdin, stdout, *force)
 }
 
 type pendingFile struct {
@@ -76,7 +130,7 @@ type pendingFile struct {
 
 // runInit validates every template and destination before creating project files.
 // If any write fails, files created by this invocation are removed.
-func runInit(cwd, templateDir string, stdout io.Writer) (err error) {
+func runInit(cwd, templateDir string, stdout io.Writer, dryRun bool) (err error) {
 	projectName := filepath.Base(filepath.Clean(cwd))
 	files := make([]pendingFile, 0, len(projectTemplates))
 
@@ -100,6 +154,12 @@ func runInit(cwd, templateDir string, stdout io.Writer) (err error) {
 			display: spec.destination,
 			content: []byte(content),
 		})
+	}
+	if dryRun {
+		for _, file := range files {
+			fmt.Fprintln(stdout, "would create", file.display)
+		}
+		return nil
 	}
 
 	for _, file := range files {
@@ -144,7 +204,7 @@ func runInit(cwd, templateDir string, stdout io.Writer) (err error) {
 
 // runSetup copies embedded defaults into the user's template directory.
 // It prompts before overwriting an existing template.
-func runSetup(templateDir string, stdin io.Reader, stdout io.Writer) error {
+func runSetup(templateDir string, stdin io.Reader, stdout io.Writer, force bool) error {
 	if err := os.MkdirAll(templateDir, 0o755); err != nil {
 		return fmt.Errorf("cannot create config dir: %w", err)
 	}
@@ -153,7 +213,7 @@ func runSetup(templateDir string, stdin io.Reader, stdout io.Writer) error {
 	for _, spec := range projectTemplates {
 		dest := filepath.Join(templateDir, spec.source)
 
-		if _, err := os.Lstat(dest); err == nil {
+		if _, err := os.Lstat(dest); err == nil && !force {
 			fmt.Fprintf(stdout, "? %s exists — overwrite? [y/N]: ", spec.source)
 			answer, readErr := input.ReadString('\n')
 			if readErr != nil && !errors.Is(readErr, io.EOF) {
@@ -163,7 +223,7 @@ func runSetup(templateDir string, stdin io.Reader, stdout io.Writer) error {
 				fmt.Fprintln(stdout, "skip", spec.source)
 				continue
 			}
-		} else if !errors.Is(err, os.ErrNotExist) {
+		} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("cannot inspect %s: %w", dest, err)
 		}
 
@@ -180,15 +240,71 @@ func runSetup(templateDir string, stdin io.Reader, stdout io.Writer) error {
 }
 
 func userTemplateDir() (string, error) {
-	home, err := os.UserHomeDir()
+	base, err := os.UserConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("cannot resolve home dir: %w", err)
+		return "", fmt.Errorf("cannot resolve user config dir: %w", err)
 	}
-	return filepath.Join(home, configDir), nil
+	return filepath.Join(base, filepath.FromSlash(configSubdir)), nil
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "usage:")
-	fmt.Fprintln(w, "  aiContext setup   — install default templates to ~/.config/aiContext/templates/")
-	fmt.Fprintln(w, "  aiContext init    — write AI agent instruction files into the current directory")
+	fmt.Fprintln(w, "aiContext bootstraps AI agent instruction files into a project.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Usage:")
+	fmt.Fprintln(w, "  aiContext setup [options]")
+	fmt.Fprintln(w, "  aiContext init [options]")
+	fmt.Fprintln(w, "  aiContext version")
+	fmt.Fprintln(w, "  aiContext help")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Run 'aiContext <command> --help' for command options.")
+}
+
+func printInitUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage: aiContext init [--dry-run] [--target DIR] [--template-dir DIR]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, "  --dry-run           Validate and show outputs without writing files")
+	fmt.Fprintln(w, "  --target DIR         Project directory (default: current directory)")
+	fmt.Fprintln(w, "  --template-dir DIR   Template directory (default: user config directory)")
+}
+
+func printSetupUsage(w io.Writer) {
+	fmt.Fprintln(w, "Usage: aiContext setup [--force] [--template-dir DIR]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Options:")
+	fmt.Fprintln(w, "  --force              Overwrite existing templates without prompting")
+	fmt.Fprintln(w, "  --template-dir DIR   Template directory (default: user config directory)")
+}
+
+func resolveTargetDir(target string) (string, error) {
+	if target == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("cannot read current dir: %w", err)
+		}
+		target = cwd
+	}
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve target directory: %w", err)
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return "", fmt.Errorf("cannot inspect target directory: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("target is not a directory: %s", abs)
+	}
+	return abs, nil
+}
+
+func resolveTemplateDir(dir string) (string, error) {
+	if dir == "" {
+		return userTemplateDir()
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve template directory: %w", err)
+	}
+	return abs, nil
 }

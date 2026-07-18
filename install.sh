@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Premium Installer for aiContext
+# Installer for aiContext
 # https://github.com/TheRealShek/aiContext
 
 set -eu
@@ -8,19 +8,25 @@ set -eu
 {
 
 # --- Color Definitions & Icons ---
-ESC=$(printf '\033')
-RED="${ESC}[0;31m"
-GREEN="${ESC}[0;32m"
-YELLOW="${ESC}[0;33m"
-BLUE="${ESC}[0;34m"
-CYAN="${ESC}[0;36m"
-BOLD="${ESC}[1m"
-NC="${ESC}[0m" # No Color
+if [ -t 1 ]; then
+    ESC=$(printf '\033')
+    RED="${ESC}[0;31m"
+    GREEN="${ESC}[0;32m"
+    YELLOW="${ESC}[0;33m"
+    CYAN="${ESC}[0;36m"
+    BOLD="${ESC}[1m"
+    NC="${ESC}[0m"
+else
+    RED=""
+    GREEN=""
+    YELLOW=""
+    CYAN=""
+    BOLD=""
+    NC=""
+fi
 
 TICK="${GREEN}✓${NC}"
 CROSS="${RED}✗${NC}"
-INFO="${BLUE}i${NC}"
-
 # --- Helper Functions ---
 log_info() {
     printf "${BOLD}${CYAN}==>${NC} %s\n" "$*"
@@ -80,21 +86,35 @@ for cmd in curl tar; do
     fi
 done
 
+calculate_sha256() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    else
+        log_error "A SHA-256 utility is required (sha256sum or shasum)."
+        exit 1
+    fi
+}
+
 # --- Version Resolution ---
 log_info "Resolving latest version..."
 REPO="TheRealShek/aiContext"
-LATEST_JSON=$(curl -sSf "https://api.github.com/repos/${REPO}/releases/latest" || true)
+LATEST_URL=$(curl -sSfL -o /dev/null -w '%{url_effective}' "https://github.com/${REPO}/releases/latest" || true)
 
-if [ -z "$LATEST_JSON" ]; then
+if [ -z "$LATEST_URL" ]; then
     log_error "Could not fetch latest release. Please check your network or try again."
     exit 1
 fi
 
-TAG=$(echo "$LATEST_JSON" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
-if [ -z "$TAG" ]; then
-    log_error "Could not resolve release tag."
-    exit 1
-fi
+TAG=${LATEST_URL##*/}
+case "$TAG" in
+    v*) ;;
+    *)
+        log_error "Could not resolve release tag."
+        exit 1
+        ;;
+esac
 
 VERSION="${TAG#v}"
 log_success "Latest release is ${BOLD}${TAG}${NC}"
@@ -106,23 +126,42 @@ cleanup() {
 }
 trap cleanup EXIT
 
-URL="https://github.com/TheRealShek/aiContext/releases/download/${TAG}/aiContext_${VERSION}_${OS}_${ARCH}.tar.gz"
+ARCHIVE_NAME="aiContext_${VERSION}_${OS}_${ARCH}.tar.gz"
+URL="https://github.com/TheRealShek/aiContext/releases/download/${TAG}/${ARCHIVE_NAME}"
+CHECKSUM_URL="https://github.com/TheRealShek/aiContext/releases/download/${TAG}/checksums.txt"
 
 log_info "Downloading ${BOLD}${URL}${NC}..."
-if ! curl -L -f -o "${TMP_DIR}/aiContext.tar.gz" "$URL"; then
+if ! curl -L -f -o "${TMP_DIR}/${ARCHIVE_NAME}" "$URL"; then
     log_error "Failed to download binary from GitHub."
     exit 1
 fi
 
+log_info "Verifying archive checksum..."
+if ! curl -L -f -o "${TMP_DIR}/checksums.txt" "$CHECKSUM_URL"; then
+    log_error "Failed to download release checksums from GitHub."
+    exit 1
+fi
+EXPECTED_SHA=$(awk -v archive="$ARCHIVE_NAME" '$2 == archive {print $1}' "${TMP_DIR}/checksums.txt")
+if [ -z "$EXPECTED_SHA" ]; then
+    log_error "Checksum for ${ARCHIVE_NAME} was not found in checksums.txt."
+    exit 1
+fi
+ACTUAL_SHA=$(calculate_sha256 "${TMP_DIR}/${ARCHIVE_NAME}")
+if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+    log_error "Checksum verification failed for ${ARCHIVE_NAME}."
+    exit 1
+fi
+log_success "Checksum verified"
+
 log_info "Extracting archive..."
-if ! tar -xzf "${TMP_DIR}/aiContext.tar.gz" -C "${TMP_DIR}"; then
+if ! tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "${TMP_DIR}"; then
     log_error "Failed to extract archive."
     exit 1
 fi
 
 # --- Target Location Determination ---
-BINARY=$(find "${TMP_DIR}" -type f -name "aiContext" | head -n 1)
-if [ -z "$BINARY" ]; then
+BINARY="${TMP_DIR}/aiContext"
+if [ ! -f "$BINARY" ]; then
     log_error "Binary not found in archive."
     exit 1
 fi
@@ -130,16 +169,19 @@ fi
 # Ensure executable permissions before moving
 chmod +x "$BINARY"
 
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="${AICONTEXT_INSTALL_DIR:-/usr/local/bin}"
 TARGET="${INSTALL_DIR}/aiContext"
 
 log_info "Installing to ${BOLD}${TARGET}${NC}..."
 
-if [ -w "$INSTALL_DIR" ]; then
+if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
+    mv "$BINARY" "$TARGET"
+elif [ ! -e "$INSTALL_DIR" ] && mkdir -p "$INSTALL_DIR" 2>/dev/null; then
     mv "$BINARY" "$TARGET"
 else
     log_info "Elevated permissions (sudo) required to install to ${INSTALL_DIR}."
     if command -v sudo >/dev/null 2>&1; then
+        sudo mkdir -p "$INSTALL_DIR"
         sudo mv "$BINARY" "$TARGET"
     else
         log_warning "No sudo access. Installing to ${HOME}/.local/bin instead..."
@@ -161,7 +203,7 @@ log_success "Successfully installed ${BOLD}aiContext${NC} to ${BOLD}${TARGET}${N
 
 # --- Run Setup ---
 log_info "Running initial setup..."
-if aiContext setup < /dev/tty; then
+if "$TARGET" setup; then
     printf "\n${BOLD}${GREEN}Setup complete! aiContext is ready to use.${NC}\n"
     printf "Navigate to your project directory and run:\n"
     printf "  ${CYAN}aiContext init${NC}\n\n"

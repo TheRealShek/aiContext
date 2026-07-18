@@ -1,91 +1,128 @@
 # aiContext
 
-CLI to bootstrap AI instruction context files (`AGENTS.md` + `CLAUDE.md`) into any project. No Go installation required.
+`aiContext` is a small CLI that bootstraps shared AI coding-agent instructions into a project. It keeps `AGENTS.md` as the main source of truth and creates compatibility files for Claude Code, Cursor, and GitHub Copilot.
 
----
+The released binaries are self-contained; Go is not required to use the CLI.
 
 ## Installation
 
-### One-Click Installation (macOS & Linux)
-
-Install globally using `curl` and `sh`:
+### macOS and Linux
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/TheRealShek/aiContext/main/install.sh | sh
 ```
 
-### Manual Installation (Windows, macOS, & Linux)
+The installer detects the platform, downloads the latest release, verifies its SHA-256 checksum, installs the binary, and runs `aiContext setup`. It uses `/usr/local/bin` when possible and falls back to `$HOME/.local/bin` when `sudo` is unavailable.
 
-**1. Download the binary for your OS and architecture**
+Set `AICONTEXT_INSTALL_DIR` to choose another installation directory:
 
-Go to [github.com/TheRealShek/aiContext/releases](https://github.com/TheRealShek/aiContext/releases) and download the right file:
+```sh
+curl -fsSL https://raw.githubusercontent.com/TheRealShek/aiContext/main/install.sh | AICONTEXT_INSTALL_DIR="$HOME/bin" sh
+```
 
-| OS | Architecture | File |
+### Manual installation
+
+Download the appropriate archive from [GitHub Releases](https://github.com/TheRealShek/aiContext/releases). Release asset names include the version:
+
+| OS | Architecture | Asset pattern |
 |---|---|---|
-| macOS | Apple Silicon (M1/M2/M3) | `aiContext_darwin_arm64.tar.gz` |
-| macOS | Intel | `aiContext_darwin_amd64.tar.gz` |
-| Linux | 64-bit | `aiContext_linux_amd64.tar.gz` |
-| Linux | ARM | `aiContext_linux_arm64.tar.gz` |
-| Windows | 64-bit | `aiContext_windows_amd64.zip` |
+| macOS | Apple Silicon | `aiContext_<version>_darwin_arm64.tar.gz` |
+| macOS | Intel | `aiContext_<version>_darwin_amd64.tar.gz` |
+| Linux | x86-64 | `aiContext_<version>_linux_amd64.tar.gz` |
+| Linux | ARM64 | `aiContext_<version>_linux_arm64.tar.gz` |
+| Windows | x86-64 | `aiContext_<version>_windows_amd64.zip` |
 
-Not sure which Mac you have? Apple menu → About This Mac. M1/M2/M3 = arm64. Intel = amd64.
-
-**2. Extract & Install**
-
-- **macOS / Linux**:
-  ```bash
-  tar -xzf aiContext_*.tar.gz
-  chmod +x aiContext
-  sudo mv aiContext /usr/local/bin/
-  ```
-- **Windows**: Extract the ZIP, and move `aiContext.exe` to any folder in your `PATH` (e.g. `%USERPROFILE%\bin`).
-
-### Setup
-
-The installer automatically runs `aiContext setup` for you, which copies default templates to `~/.config/aiContext/templates/`.
-
-If you installed manually, run it once yourself:
+Extract the archive, place `aiContext` (`aiContext.exe` on Windows) in a directory on `PATH`, then run:
 
 ```sh
 aiContext setup
 ```
 
-You can edit those template files anytime to change what gets generated globally.
+## Quick start
 
----
-
-## Usage
-
-```bash
-cd myproject
+```sh
+cd my-project
 aiContext init
 ```
 
-Writes `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/aicontext.mdc`, and `.github/copilot-instructions.md` into the current directory. The project name is inferred from the directory name. Refuses to overwrite existing files.
+The command creates:
 
----
+```text
+AGENTS.md
+CLAUDE.md
+.cursor/rules/aicontext.mdc
+.github/copilot-instructions.md
+```
+
+`AGENTS.md` contains the editable project instructions. The other files reference it using the supported instruction-import format. `init` validates every template and destination before writing and refuses to overwrite an existing project file.
 
 ## Commands
 
-| Command | What it does |
-|---|---|
-| `aiContext setup` | Copies default templates to `~/.config/aiContext/templates/`. Run once after install. Safe to re-run — prompts before overwriting. |
-| `aiContext init` | Writes `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/aicontext.mdc`, and `.github/copilot-instructions.md` into current dir from your templates. |
+### `aiContext setup`
 
----
+Copies the embedded defaults into the user configuration directory. Existing templates are preserved unless their overwrite prompts are accepted.
 
-## Shell Alias (optional)
+```sh
+aiContext setup
+aiContext setup --force
+aiContext setup --template-dir ./my-templates
+```
 
-```bash
-# find your shell
-echo $SHELL
+The default location follows the operating system's user configuration convention:
 
+- Linux: `$XDG_CONFIG_HOME/aiContext/templates`, or `~/.config/aiContext/templates`
+- macOS: `~/Library/Application Support/aiContext/templates`
+- Windows: `%AppData%\aiContext\templates`
+
+Edit these files to customize what future projects receive. After upgrading from a version that used `.cursorrules`, run `aiContext setup` once to install the new `cursor.mdc` template.
+
+### `aiContext init`
+
+Creates instruction files in the current directory:
+
+```sh
+aiContext init
+aiContext init --dry-run
+aiContext init --target ../another-project
+aiContext init --template-dir ./team-templates
+```
+
+Options can be combined. For example:
+
+```sh
+aiContext init --dry-run --target ./service --template-dir ./templates
+```
+
+### Other commands
+
+```sh
+aiContext help
+aiContext version
+aiContext init --help
+aiContext setup --help
+```
+
+## Template values
+
+`{{PROJECT_NAME}}` is replaced with the target directory name during `init`. Other template text is copied unchanged.
+
+## Optional shell alias
+
+```sh
 # zsh
-echo "alias ac='aiContext'" >> ~/.zshrc && source ~/.zshrc
+echo "alias ac='aiContext'" >> ~/.zshrc
 
-# bash  
-echo "alias ac='aiContext'" >> ~/.bashrc && source ~/.bashrc
+# bash
+echo "alias ac='aiContext'" >> ~/.bashrc
 
 # fish
-echo "alias ac='aiContext'" >> ~/.config/fish/config.fish && source ~/.config/fish/config.fish
+echo "alias ac='aiContext'" >> ~/.config/fish/config.fish
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

@@ -1,31 +1,55 @@
-# 💻 Developing aiContext
+# Contributing to aiContext
 
-Guidelines and commands for maintainers of `aiContext`.
+## Requirements
 
----
+- Go 1.25 or newer
+- A POSIX shell for validating `install.sh`
 
-### **🔨 Development Setup**
+## Development workflow
 
-Add the git remote origin and update the module path:
+Build the CLI:
 
-```bash
-# once
-git remote add origin https://github.com/yourusername/aiContext
-# update go.mod module path to match ^ real username
+```sh
+go build ./...
 ```
 
----
+Run all local checks:
 
-### **🚀 Making a Release**
+```sh
+gofmt -w main.go main_test.go
+go vet ./...
+go test ./...
+sh -n install.sh
+```
 
-Releases are fully automated!
+Test the CLI without modifying your normal templates or a real project:
 
-- **Automatic Releases**: Every push or merge to the `main` branch automatically increments the patch version (e.g., `v1.0.3` → `v1.0.4`), tags the commit, and publishes the new release via GitHub Actions and GoReleaser.
-- **Manual Releases**: If you want to release a specific version (like a major or minor version bump, e.g., `v2.0.0`), tag the commit manually and push:
+```sh
+tmp_templates="$(mktemp -d)"
+tmp_project="$(mktemp -d)"
+go run . setup --template-dir "$tmp_templates"
+go run . init --target "$tmp_project" --template-dir "$tmp_templates"
+```
 
-  ```bash
-  git tag v2.0.0
-  git push origin v2.0.0
-  ```
+Please add or update tests for behavior changes. Keep the CLI dependency-free unless a dependency provides a clear maintenance or correctness benefit.
 
-  GitHub Actions will detect the manual tag, skip the automatic patch increment, and release the exact version specified.
+## Pull requests
+
+Before opening a pull request:
+
+1. Run the formatting, vet, test, and installer syntax checks above.
+2. Confirm `git diff --check` reports no whitespace errors.
+3. Update the README when commands, generated files, or installation behavior change.
+
+CI runs these checks for pushes and pull requests.
+
+## Releases
+
+Releases are tag-driven. After the desired commit is on `main`, create and push a semantic version tag:
+
+```sh
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+The release workflow validates the code again, then GoReleaser builds platform archives and publishes checksums. Do not reuse or move an existing release tag.
