@@ -64,6 +64,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 		return nil
 	case "profiles":
 		return runProfilesCommand(args[1:], stdout)
+	case "clean":
+		return runCleanCommand(args[1:], stdout)
 	case "version", "--version":
 		if len(args) != 1 {
 			return fmt.Errorf("version does not accept arguments")
@@ -580,6 +582,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  aiContext diff|sync|update [options]")
 	fmt.Fprintln(w, "  aiContext tools")
 	fmt.Fprintln(w, "  aiContext profiles")
+	fmt.Fprintln(w, "  aiContext clean [options]")
 	fmt.Fprintln(w, "  aiContext version")
 	fmt.Fprintln(w, "  aiContext help")
 	fmt.Fprintln(w)
