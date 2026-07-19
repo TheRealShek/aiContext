@@ -402,6 +402,11 @@ func runInit(cwd, templateDir string, stdout io.Writer, options initOptions) (er
 		if readErr != nil {
 			return fmt.Errorf("cannot read template %s (run: aiContext setup): %w", spec.source, readErr)
 		}
+		if spec.destination == "AGENTS.md" {
+			if validationErr := validateCanonicalTemplate(raw, options); validationErr != nil {
+				return validationErr
+			}
+		}
 
 		destPath := filepath.Join(cwd, filepath.FromSlash(spec.destination))
 		if _, statErr := os.Lstat(destPath); statErr == nil {
@@ -476,6 +481,34 @@ func runInit(cwd, templateDir string, stdout io.Writer, options initOptions) (er
 		fmt.Fprintln(stdout, "✓", file.display)
 	}
 	return nil
+}
+
+func validateCanonicalTemplate(content []byte, options initOptions) error {
+	template := string(content)
+	required := make([]string, 0, 4)
+	if options.detect {
+		required = append(required, "{{STACK}}", "{{COMMANDS}}")
+	}
+	if options.profile != "" && options.profile != "adopted" {
+		required = append(required, "{{PROFILE_GUIDELINES}}")
+	}
+	if len(options.languages) > 0 {
+		required = append(required, "{{LANGUAGE_GUIDELINES}}")
+	}
+
+	missing := make([]string, 0, len(required))
+	for _, placeholder := range required {
+		if !strings.Contains(template, placeholder) {
+			missing = append(missing, placeholder)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"AGENTS.md template is missing required placeholder(s) %s; run 'aiContext setup' and accept the updated AGENTS.md template, or add the placeholder(s) manually",
+		strings.Join(missing, ", "),
+	)
 }
 
 func runAdopt(cwd string, tools []string, detect bool, profile string, languages []string, stdout io.Writer, dryRun bool) error {

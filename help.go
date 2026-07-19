@@ -34,6 +34,8 @@ func runHelpCommand(args []string, w io.Writer) error {
 		printToolsUsage(w)
 	case "profiles":
 		printProfilesUsage(w)
+	case "languages":
+		printLanguagesHelp(w)
 	case "clean":
 		printCleanUsage(w)
 	case "version":
@@ -76,6 +78,9 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  version    Print the installed aiContext version")
 	fmt.Fprintln(w, "  help       Show this guide or detailed help for one command")
 	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Help topics:")
+	fmt.Fprintln(w, "  languages  Select, find, and add language-specific rules")
+	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Common workflows:")
 	fmt.Fprintln(w, "  Preview first:          aiContext init --detect --dry-run")
 	fmt.Fprintln(w, "  Use existing files:     aiContext init --adopt --tools codex,claude")
@@ -112,6 +117,12 @@ func printInitUsage(w io.Writer) {
 	fmt.Fprintln(w, "  aiContext init --tools codex,claude,gemini --profile strict")
 	fmt.Fprintln(w, "  aiContext init --languages go,typescript --target ../service")
 	fmt.Fprintln(w, "  aiContext init --adopt --tools codex,claude")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Where the generated guidance goes:")
+	fmt.Fprintln(w, "  Profiles and language packs are composed into AGENTS.md during init.")
+	fmt.Fprintln(w, "  Tool adapter files only reference that canonical file. After init, edit")
+	fmt.Fprintln(w, "  AGENTS.md directly; init cannot be rerun over an already managed project.")
+	fmt.Fprintln(w, "  See 'aiContext help languages' for selection and troubleshooting.")
 }
 
 func printSetupUsage(w io.Writer) {
@@ -131,6 +142,43 @@ func printSetupUsage(w io.Writer) {
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  aiContext setup")
 	fmt.Fprintln(w, "  aiContext setup --template-dir ./team-templates")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Troubleshooting:")
+	fmt.Fprintln(w, "  Templates are local, editable assets and can become stale after an upgrade.")
+	fmt.Fprintln(w, "  If init reports selected guidance but the generated AGENTS.md lacks it, run")
+	fmt.Fprintln(w, "  setup and accept the updated template. --force replaces every local asset,")
+	fmt.Fprintln(w, "  including customizations.")
+}
+
+func printLanguagesHelp(w io.Writer) {
+	fmt.Fprintln(w, "Select and manage language-specific rules in AGENTS.md.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "For a new project:")
+	fmt.Fprintln(w, "  aiContext init --languages java")
+	fmt.Fprintln(w, "  aiContext init --languages java,kotlin")
+	fmt.Fprintln(w, "  aiContext init --languages auto       # default; detect from manifests")
+	fmt.Fprintln(w, "  aiContext init --languages none       # omit language rules")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Supported values:")
+	fmt.Fprintf(w, "  %s\n", supportedLanguageList())
+	fmt.Fprintln(w, "  'all' selects every pack; 'auto' detects packs such as Java from pom.xml")
+	fmt.Fprintln(w, "  or build.gradle. Run 'aiContext profiles' to inspect installed packs.")
+	fmt.Fprintln(w, "  If the manifest is below the repository root or detection misses it, select")
+	fmt.Fprintln(w, "  the pack explicitly with '--languages java'.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Where rules appear:")
+	fmt.Fprintln(w, "  Selected packs are copied into the 'Language Guidelines' section of the")
+	fmt.Fprintln(w, "  new AGENTS.md. CLAUDE.md and other adapters only reference AGENTS.md.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "For an already initialized project:")
+	fmt.Fprintln(w, "  AGENTS.md is project-owned and lifecycle commands never regenerate it.")
+	fmt.Fprintln(w, "  Edit its 'Language Guidelines' section directly. Use 'aiContext profiles'")
+	fmt.Fprintln(w, "  to find the config root, then copy from guidelines/<language>.md if useful.")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "If selected rules are missing after init:")
+	fmt.Fprintln(w, "  Your local AGENTS.md template may predate language placeholders. Run")
+	fmt.Fprintln(w, "  'aiContext setup' and accept the updated template. Use --force only if")
+	fmt.Fprintln(w, "  replacing every customized template, profile, and guideline is acceptable.")
 }
 
 func printHealthUsage(w io.Writer, check bool) {
@@ -271,11 +319,11 @@ func printVersionUsage(w io.Writer) {
 }
 
 func printHelpUsage(w io.Writer) {
-	fmt.Fprintln(w, "Show the command overview or detailed help for one command.")
+	fmt.Fprintln(w, "Show the command overview or detailed help for one command or topic.")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  aiContext help")
-	fmt.Fprintln(w, "  aiContext help <command>")
+	fmt.Fprintln(w, "  aiContext help <command-or-topic>")
 	fmt.Fprintln(w, "  aiContext <command> --help")
 }
 

@@ -20,7 +20,9 @@ func TestRunInitCreatesAllFiles(t *testing.T) {
 	}
 
 	wantFiles := map[string]string{
-		"AGENTS.md":                       "project: " + filepath.Base(projectDir) + "\n",
+		"AGENTS.md": "project: " + filepath.Base(projectDir) + "\n" +
+			"<!-- Add the working agreement for this project. -->\n" +
+			"<!-- Add language-specific guidance when it prevents real mistakes. -->\n",
 		"CLAUDE.md":                       "@AGENTS.md\n",
 		".cursor/rules/aicontext.mdc":     "@AGENTS.md\n",
 		".github/copilot-instructions.md": "@AGENTS.md\n",
@@ -183,6 +185,7 @@ func TestRunSupportsHelpVersionAndCustomDirectories(t *testing.T) {
 		{name: "command help", args: []string{"help", "init"}, want: "Use --adopt when the instruction files already exist"},
 		{name: "command help flag", args: []string{"clean", "--help"}, want: "Modified or symlinked files are preserved"},
 		{name: "tools help flag", args: []string{"tools", "--help"}, want: "values accepted by init and update's --tools option"},
+		{name: "language help topic", args: []string{"help", "languages"}, want: "For an already initialized project:"},
 		{name: "version", args: []string{"version"}, want: "aiContext " + version},
 		{
 			name: "custom init dry run",
@@ -210,10 +213,34 @@ func TestHelpRejectsUnknownTopicWithGuidance(t *testing.T) {
 	}
 }
 
+func TestRunInitRejectsStaleTemplateMissingSelectedGuidancePlaceholders(t *testing.T) {
+	templateDir := t.TempDir()
+	projectDir := t.TempDir()
+	if err := runSetup(templateDir, strings.NewReader(""), &bytes.Buffer{}, false); err != nil {
+		t.Fatalf("runSetup() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(templateDir, "AGENTS.md"), []byte("# old template\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runInit(projectDir, templateDir, &bytes.Buffer{}, initOptions{
+		profile:   "standard",
+		languages: []string{"java"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "{{LANGUAGE_GUIDELINES}}") || !strings.Contains(err.Error(), "aiContext setup") {
+		t.Fatalf("runInit() error = %v, want actionable missing-placeholder error", err)
+	}
+	if _, statErr := os.Lstat(filepath.Join(projectDir, "AGENTS.md")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("AGENTS.md created from stale template; stat error = %v", statErr)
+	}
+}
+
 func writeTestTemplates(t *testing.T, dir string) {
 	t.Helper()
 	contents := map[string]string{
-		"AGENTS.md":               "project: {{PROJECT_NAME}}\n",
+		"AGENTS.md": "project: {{PROJECT_NAME}}\n" +
+			"{{PROFILE_GUIDELINES}}\n" +
+			"{{LANGUAGE_GUIDELINES}}\n",
 		"CLAUDE.md":               "@AGENTS.md\n",
 		"cursor.mdc":              "@AGENTS.md\n",
 		"copilot-instructions.md": "@AGENTS.md\n",

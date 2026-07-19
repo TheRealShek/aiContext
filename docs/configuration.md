@@ -87,7 +87,11 @@ The canonical `AGENTS.md` template supports these placeholders:
 
 Adapter templates may also use `{{PROJECT_NAME}}`. All other text is copied unchanged.
 
-Unresolved known placeholders are reported by `doctor` and `check` so a customized template cannot silently produce incomplete instructions.
+When an initialization option needs profile, language, stack, or command content,
+`init` verifies that the corresponding placeholder exists before creating any
+files. A stale template therefore fails with instructions to refresh it instead
+of silently dropping selected guidance. Unresolved known placeholders are also
+reported by `doctor` and `check`.
 
 ## Designing useful project instructions
 
