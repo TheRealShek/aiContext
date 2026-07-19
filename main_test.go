@@ -180,6 +180,9 @@ func TestRunSupportsHelpVersionAndCustomDirectories(t *testing.T) {
 		want string
 	}{
 		{name: "help", args: []string{"help"}, want: "Usage:"},
+		{name: "command help", args: []string{"help", "init"}, want: "Use --adopt when the instruction files already exist"},
+		{name: "command help flag", args: []string{"clean", "--help"}, want: "Modified or symlinked files are preserved"},
+		{name: "tools help flag", args: []string{"tools", "--help"}, want: "values accepted by init and update's --tools option"},
 		{name: "version", args: []string{"version"}, want: "aiContext " + version},
 		{
 			name: "custom init dry run",
@@ -197,6 +200,13 @@ func TestRunSupportsHelpVersionAndCustomDirectories(t *testing.T) {
 				t.Fatalf("run() output = %q, want substring %q", output.String(), tt.want)
 			}
 		})
+	}
+}
+
+func TestHelpRejectsUnknownTopicWithGuidance(t *testing.T) {
+	err := run([]string{"help", "unknown"}, strings.NewReader(""), &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "aiContext help") {
+		t.Fatalf("run() error = %v, want unknown-topic guidance", err)
 	}
 }
 

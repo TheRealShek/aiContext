@@ -20,7 +20,7 @@ func runCleanCommand(args []string, stdout io.Writer) error {
 	flags.SetOutput(stdout)
 	target := flags.String("target", "", "project directory (default: current directory)")
 	dryRun := flags.Bool("dry-run", false, "show what would be removed without changing files")
-	flags.Usage = func() { fmt.Fprintln(stdout, "Usage: aiContext clean [--dry-run] [--target DIR]") }
+	flags.Usage = func() { printCleanUsage(stdout) }
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil

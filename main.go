@@ -57,6 +57,10 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	case "update":
 		return runLifecycleCommand(args[1:], stdout, true)
 	case "tools":
+		if len(args) == 2 && isHelpFlag(args[1]) {
+			printToolsUsage(stdout)
+			return nil
+		}
 		if len(args) != 1 {
 			return fmt.Errorf("tools does not accept arguments")
 		}
@@ -67,14 +71,21 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	case "clean":
 		return runCleanCommand(args[1:], stdout)
 	case "version", "--version":
+		if args[0] == "version" && len(args) == 2 && isHelpFlag(args[1]) {
+			printVersionUsage(stdout)
+			return nil
+		}
 		if len(args) != 1 {
 			return fmt.Errorf("version does not accept arguments")
 		}
 		fmt.Fprintf(stdout, "aiContext %s\n", version)
 		return nil
 	case "help", "--help", "-h":
+		if args[0] == "help" {
+			return runHelpCommand(args[1:], stdout)
+		}
 		if len(args) != 1 {
-			return fmt.Errorf("help does not accept arguments")
+			return fmt.Errorf("%s does not accept arguments", args[0])
 		}
 		printUsage(stdout)
 		return nil
@@ -84,11 +95,15 @@ func run(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 }
 
+func isHelpFlag(arg string) bool {
+	return arg == "--help" || arg == "-h"
+}
+
 func runProfilesCommand(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet("profiles", flag.ContinueOnError)
 	flags.SetOutput(stdout)
 	templateDir := flags.String("template-dir", "", "template directory (default: user config directory)")
-	flags.Usage = func() { fmt.Fprintln(stdout, "Usage: aiContext profiles [--template-dir DIR]") }
+	flags.Usage = func() { printProfilesUsage(stdout) }
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -117,13 +132,7 @@ func runHealthCommand(args []string, stdout io.Writer, check bool) error {
 	if check {
 		flags.BoolVar(&strict, "strict", false, "treat warnings as failures")
 	}
-	flags.Usage = func() {
-		fmt.Fprintf(stdout, "Usage: aiContext %s [--target DIR]", name)
-		if check {
-			fmt.Fprint(stdout, " [--strict]")
-		}
-		fmt.Fprintln(stdout)
-	}
+	flags.Usage = func() { printHealthUsage(stdout, check) }
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -153,7 +162,7 @@ func runDiffCommand(args []string, stdout io.Writer) error {
 	flags.SetOutput(stdout)
 	target := flags.String("target", "", "project directory (default: current directory)")
 	templateDir := flags.String("template-dir", "", "template directory (default: user config directory)")
-	flags.Usage = func() { fmt.Fprintln(stdout, "Usage: aiContext diff [--target DIR] [--template-dir DIR]") }
+	flags.Usage = func() { printDiffUsage(stdout) }
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -192,13 +201,7 @@ func runLifecycleCommand(args []string, stdout io.Writer, allowToolChange bool) 
 	if allowToolChange {
 		flags.StringVar(&toolsFlag, "tools", "", "replace the selected tool set")
 	}
-	flags.Usage = func() {
-		fmt.Fprintf(stdout, "Usage: aiContext %s [--dry-run] [--target DIR] [--template-dir DIR]", name)
-		if allowToolChange {
-			fmt.Fprint(stdout, " [--tools LIST]")
-		}
-		fmt.Fprintln(stdout)
-	}
+	flags.Usage = func() { printLifecycleUsage(stdout, allowToolChange) }
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -570,45 +573,6 @@ func userTemplateDir() (string, error) {
 		return "", fmt.Errorf("cannot resolve user config dir: %w", err)
 	}
 	return filepath.Join(base, filepath.FromSlash(configSubdir)), nil
-}
-
-func printUsage(w io.Writer) {
-	fmt.Fprintln(w, "aiContext creates and maintains AI agent instruction files.")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Usage:")
-	fmt.Fprintln(w, "  aiContext setup [options]")
-	fmt.Fprintln(w, "  aiContext init [options]")
-	fmt.Fprintln(w, "  aiContext doctor|check [options]")
-	fmt.Fprintln(w, "  aiContext diff|sync|update [options]")
-	fmt.Fprintln(w, "  aiContext tools")
-	fmt.Fprintln(w, "  aiContext profiles")
-	fmt.Fprintln(w, "  aiContext clean [options]")
-	fmt.Fprintln(w, "  aiContext version")
-	fmt.Fprintln(w, "  aiContext help")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Run 'aiContext <command> --help' for command options.")
-}
-
-func printInitUsage(w io.Writer) {
-	fmt.Fprintln(w, "Usage: aiContext init [--adopt] [--detect] [--dry-run] [--tools LIST] [--profile NAME] [--languages LIST] [--target DIR] [--template-dir DIR]")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Options:")
-	fmt.Fprintln(w, "  --adopt             Manage existing instruction files without replacing them")
-	fmt.Fprintln(w, "  --detect            Detect the project stack and common commands")
-	fmt.Fprintln(w, "  --dry-run           Validate and show outputs without writing files")
-	fmt.Fprintf(w, "  --tools LIST        Comma-separated tools (default: %s)\n", strings.Join(defaultTools, ","))
-	fmt.Fprintln(w, "  --profile NAME      Working profile (default: standard)")
-	fmt.Fprintln(w, "  --languages LIST    auto, none, all, or comma-separated guideline packs")
-	fmt.Fprintln(w, "  --target DIR         Project directory (default: current directory)")
-	fmt.Fprintln(w, "  --template-dir DIR   Template directory (default: user config directory)")
-}
-
-func printSetupUsage(w io.Writer) {
-	fmt.Fprintln(w, "Usage: aiContext setup [--force] [--template-dir DIR]")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "Options:")
-	fmt.Fprintln(w, "  --force              Overwrite existing templates without prompting")
-	fmt.Fprintln(w, "  --template-dir DIR   Template directory (default: user config directory)")
 }
 
 func resolveTargetDir(target string) (string, error) {
