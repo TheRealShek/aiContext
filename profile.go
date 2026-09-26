@@ -41,14 +41,12 @@ type setupAsset struct {
 }
 
 func setupAssets(templateDir string) []setupAsset {
-	assets := make([]setupAsset, 0, len(setupTemplateSpecs())+len(builtInProfiles)+len(languageDefinitions))
-	for _, spec := range setupTemplateSpecs() {
-		assets = append(assets, setupAsset{
-			embedded:    "templates/" + spec.source,
-			destination: filepath.Join(templateDir, spec.source),
-			label:       "templates/" + spec.source,
-		})
-	}
+	assets := make([]setupAsset, 0, 1+len(builtInProfiles)+len(languageDefinitions))
+	assets = append(assets, setupAsset{
+		embedded:    "templates/AGENTS.md",
+		destination: filepath.Join(templateDir, "AGENTS.md"),
+		label:       "templates/AGENTS.md",
+	})
 	root := filepath.Dir(filepath.Clean(templateDir))
 	for _, profile := range builtInProfiles {
 		name := profile + ".md"

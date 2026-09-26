@@ -7,11 +7,7 @@
 ```text
 aiContext/
 ├── templates/
-│   ├── AGENTS.md
-│   ├── CLAUDE.md
-│   ├── GEMINI.md
-│   ├── copilot-instructions.md
-│   └── cursor.mdc
+│   └── AGENTS.md
 ├── profiles/
 │   ├── minimal.md
 │   ├── standard.md
@@ -65,17 +61,9 @@ aicontext/
 └── guidelines/
 ```
 
-Lifecycle commands that render adapters must use the same template directory when it differs from the user default:
-
-```sh
-aiContext diff --template-dir ./aicontext/templates
-aiContext sync --template-dir ./aicontext/templates
-aiContext update --template-dir ./aicontext/templates --tools codex,gemini
-```
-
 ## Template placeholders
 
-The canonical `AGENTS.md` template supports these placeholders:
+The `AGENTS.md` template supports these placeholders:
 
 | Placeholder | Replaced with |
 | --- | --- |
@@ -85,13 +73,7 @@ The canonical `AGENTS.md` template supports these placeholders:
 | `{{PROFILE_GUIDELINES}}` | Selected profile contents |
 | `{{LANGUAGE_GUIDELINES}}` | Selected language-pack contents |
 
-Adapter templates may also use `{{PROJECT_NAME}}`. All other text is copied unchanged.
-
-When an initialization option needs profile, language, stack, or command content,
-`init` verifies that the corresponding placeholder exists before creating any
-files. A stale template therefore fails with instructions to refresh it instead
-of silently dropping selected guidance. Unresolved known placeholders are also
-reported by `doctor` and `check`.
+When an initialization option needs profile, language, stack, or command content, `init` verifies that the corresponding placeholder exists before creating `AGENTS.md`. A stale template fails with instructions to refresh it instead of silently dropping selected guidance.
 
 ## Designing useful project instructions
 

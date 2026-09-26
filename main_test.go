@@ -9,106 +9,100 @@ import (
 	"testing"
 )
 
-func TestRunInitCreatesAllFiles(t *testing.T) {
+func TestRunInitCreatesOnlyAgentsMD(t *testing.T) {
 	templateDir := t.TempDir()
 	projectDir := t.TempDir()
 	writeTestTemplates(t, templateDir)
-
-	var output bytes.Buffer
-	if err := runInit(projectDir, templateDir, &output, initOptions{}); err != nil {
-		t.Fatalf("runInit() error = %v", err)
+	if err := runInit(projectDir, templateDir, &bytes.Buffer{}, initOptions{}); err != nil {
+		t.Fatal(err)
 	}
-
-	wantFiles := map[string]string{
-		"AGENTS.md": "project: " + filepath.Base(projectDir) + "\n" +
-			"<!-- Add the working agreement for this project. -->\n" +
-			"<!-- Add language-specific guidance when it prevents real mistakes. -->\n",
-		"CLAUDE.md":                       "@AGENTS.md\n",
-		".cursor/rules/aicontext.mdc":     "@AGENTS.md\n",
-		".github/copilot-instructions.md": "@AGENTS.md\n",
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for name, want := range wantFiles {
-		data, err := os.ReadFile(filepath.Join(projectDir, filepath.FromSlash(name)))
-		if err != nil {
-			t.Fatalf("ReadFile(%q) error = %v", name, err)
-		}
-		if got := string(data); got != want {
-			t.Errorf("%s content = %q, want %q", name, got, want)
-		}
+	if len(entries) != 1 || entries[0].Name() != "AGENTS.md" {
+		t.Fatalf("project entries = %v, want only AGENTS.md", entries)
 	}
-	if _, err := readManifest(projectDir); err != nil {
-		t.Fatalf("readManifest() error = %v", err)
+	got, err := os.ReadFile(filepath.Join(projectDir, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "project: " + filepath.Base(projectDir) + "\n" +
+		"<!-- Add the working agreement for this project. -->\n" +
+		"<!-- Add language-specific guidance when it prevents real mistakes. -->\n"
+	if string(got) != want {
+		t.Fatalf("AGENTS.md = %q, want %q", got, want)
 	}
 }
 
 func TestRunInitMissingTemplateCreatesNothing(t *testing.T) {
-	templateDir := t.TempDir()
 	projectDir := t.TempDir()
-	writeTestTemplates(t, templateDir)
-	if err := os.Remove(filepath.Join(templateDir, "CLAUDE.md")); err != nil {
-		t.Fatal(err)
+	err := runInit(projectDir, t.TempDir(), &bytes.Buffer{}, initOptions{})
+	if err == nil || !strings.Contains(err.Error(), "AGENTS.md") {
+		t.Fatalf("runInit() error = %v, want missing template error", err)
 	}
-
-	err := runInit(projectDir, templateDir, &bytes.Buffer{}, initOptions{})
-	if err == nil || !strings.Contains(err.Error(), "CLAUDE.md") {
-		t.Fatalf("runInit() error = %v, want missing CLAUDE.md error", err)
-	}
-
-	for _, spec := range templateSpecsForTools(defaultTools) {
-		_, statErr := os.Lstat(filepath.Join(projectDir, filepath.FromSlash(spec.destination)))
-		if !errors.Is(statErr, os.ErrNotExist) {
-			t.Errorf("destination %s exists after failed init; stat error = %v", spec.destination, statErr)
-		}
-	}
-	if _, statErr := os.Lstat(filepath.Join(projectDir, manifestFilename)); !errors.Is(statErr, os.ErrNotExist) {
-		t.Errorf("%s exists after failed init; stat error = %v", manifestFilename, statErr)
+	entries, err := os.ReadDir(projectDir)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("project entries = %v, error = %v", entries, err)
 	}
 }
 
-func TestRunInitRefusesExistingDestination(t *testing.T) {
+func TestRunInitRefusesExistingAgentsMD(t *testing.T) {
 	templateDir := t.TempDir()
 	projectDir := t.TempDir()
 	writeTestTemplates(t, templateDir)
-	existing := filepath.Join(projectDir, "CLAUDE.md")
+	existing := filepath.Join(projectDir, "AGENTS.md")
 	if err := os.WriteFile(existing, []byte("keep me\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-
-	err := runInit(projectDir, templateDir, &bytes.Buffer{}, initOptions{})
-	if err == nil || !strings.Contains(err.Error(), "already exists") {
-		t.Fatalf("runInit() error = %v, want existing destination error", err)
+	if err := runInit(projectDir, templateDir, &bytes.Buffer{}, initOptions{}); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("runInit() error = %v, want existing file error", err)
 	}
-	data, readErr := os.ReadFile(existing)
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-	if got := string(data); got != "keep me\n" {
-		t.Fatalf("existing file content = %q, want unchanged", got)
-	}
-	if _, statErr := os.Lstat(filepath.Join(projectDir, "AGENTS.md")); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("AGENTS.md created despite preflight failure; stat error = %v", statErr)
+	data, err := os.ReadFile(existing)
+	if err != nil || string(data) != "keep me\n" {
+		t.Fatalf("existing AGENTS.md = %q, error = %v", data, err)
 	}
 }
 
-func TestRunSetupCopiesEmbeddedTemplates(t *testing.T) {
+func TestRunInitLeavesOtherInstructionFilesAlone(t *testing.T) {
 	templateDir := t.TempDir()
-	var output bytes.Buffer
-	if err := runSetup(templateDir, strings.NewReader(""), &output, false); err != nil {
-		t.Fatalf("runSetup() error = %v", err)
+	projectDir := t.TempDir()
+	writeTestTemplates(t, templateDir)
+	writeProjectFile(t, projectDir, "CLAUDE.md", "custom instructions\n")
+	writeProjectFile(t, projectDir, ".aicontext.json", "legacy state\n")
+	if err := runInit(projectDir, templateDir, &bytes.Buffer{}, initOptions{}); err != nil {
+		t.Fatal(err)
 	}
+	for path, want := range map[string]string{
+		"CLAUDE.md":       "custom instructions\n",
+		".aicontext.json": "legacy state\n",
+	} {
+		got, err := os.ReadFile(filepath.Join(projectDir, path))
+		if err != nil || string(got) != want {
+			t.Fatalf("%s = %q, error = %v", path, got, err)
+		}
+	}
+}
 
-	for _, spec := range setupTemplateSpecs() {
-		got, err := os.ReadFile(filepath.Join(templateDir, spec.source))
-		if err != nil {
-			t.Fatalf("ReadFile(%q) error = %v", spec.source, err)
-		}
-		want, err := defaultTemplates.ReadFile("templates/" + spec.source)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(got, want) {
-			t.Errorf("setup template %s differs from embedded default", spec.source)
-		}
+func TestRunSetupCopiesEmbeddedTemplate(t *testing.T) {
+	templateDir := t.TempDir()
+	if err := runSetup(templateDir, strings.NewReader(""), &bytes.Buffer{}, false); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(templateDir, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := defaultTemplates.ReadFile("templates/AGENTS.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("installed template differs from embedded template")
+	}
+	entries, err := os.ReadDir(templateDir)
+	if err != nil || len(entries) != 1 || entries[0].Name() != "AGENTS.md" {
+		t.Fatalf("template entries = %v, error = %v", entries, err)
 	}
 }
 
@@ -182,10 +176,9 @@ func TestRunSupportsHelpVersionAndCustomDirectories(t *testing.T) {
 		want string
 	}{
 		{name: "help", args: []string{"help"}, want: "Usage:"},
-		{name: "command help", args: []string{"help", "init"}, want: "Use --adopt when the instruction files already exist"},
-		{name: "command help flag", args: []string{"clean", "--help"}, want: "Modified or symlinked files are preserved"},
-		{name: "tools help flag", args: []string{"tools", "--help"}, want: "values accepted by init and update's --tools option"},
-		{name: "language help topic", args: []string{"help", "languages"}, want: "For an already initialized project:"},
+		{name: "command help", args: []string{"help", "init"}, want: "refuses to replace an existing AGENTS.md"},
+		{name: "command help flag", args: []string{"init", "--help"}, want: "Create one project-owned AGENTS.md"},
+		{name: "language help topic", args: []string{"help", "languages"}, want: "For an existing project"},
 		{name: "version", args: []string{"version"}, want: "aiContext " + version},
 		{
 			name: "custom init dry run",
@@ -241,10 +234,6 @@ func writeTestTemplates(t *testing.T, dir string) {
 		"AGENTS.md": "project: {{PROJECT_NAME}}\n" +
 			"{{PROFILE_GUIDELINES}}\n" +
 			"{{LANGUAGE_GUIDELINES}}\n",
-		"CLAUDE.md":               "@AGENTS.md\n",
-		"cursor.mdc":              "@AGENTS.md\n",
-		"copilot-instructions.md": "@AGENTS.md\n",
-		"GEMINI.md":               "@AGENTS.md\n",
 	}
 	for name, content := range contents {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {

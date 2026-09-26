@@ -44,7 +44,7 @@ func TestInitDefaultsToStandardProfileAndDetectedGoGuidelines(t *testing.T) {
 
 	var output bytes.Buffer
 	err := run([]string{
-		"init", "--target", projectDir, "--template-dir", templateDir, "--tools", "codex",
+		"init", "--target", projectDir, "--template-dir", templateDir,
 	}, strings.NewReader(""), &output)
 	if err != nil {
 		t.Fatalf("init error = %v\noutput: %s", err, output.String())
@@ -60,13 +60,6 @@ func TestInitDefaultsToStandardProfileAndDetectedGoGuidelines(t *testing.T) {
 			t.Errorf("AGENTS.md does not contain %q", want)
 		}
 	}
-	manifest, err := readManifest(projectDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if manifest.Profile != "standard" || !reflect.DeepEqual(manifest.Languages, []string{"go"}) {
-		t.Fatalf("manifest profile/languages = %q/%v", manifest.Profile, manifest.Languages)
-	}
 }
 
 func TestInitSupportsSecurityProfileAndExplicitRustGuidelines(t *testing.T) {
@@ -77,8 +70,7 @@ func TestInitSupportsSecurityProfileAndExplicitRustGuidelines(t *testing.T) {
 	}
 
 	err := run([]string{
-		"init", "--target", projectDir, "--template-dir", templateDir, "--tools", "codex",
-		"--profile", "security", "--languages", "rust",
+		"init", "--target", projectDir, "--template-dir", templateDir, "--profile", "security", "--languages", "rust",
 	}, strings.NewReader(""), &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
@@ -106,8 +98,7 @@ func TestInitSupportsCustomLocalProfileAndNoLanguagePack(t *testing.T) {
 	writeProjectFile(t, configRoot, "profiles/team.md", "- Preserve our public event schema.\n")
 
 	err := run([]string{
-		"init", "--target", projectDir, "--template-dir", templateDir, "--tools", "codex",
-		"--profile", "team", "--languages", "none",
+		"init", "--target", projectDir, "--template-dir", templateDir, "--profile", "team", "--languages", "none",
 	}, strings.NewReader(""), &bytes.Buffer{})
 	if err != nil {
 		t.Fatal(err)
